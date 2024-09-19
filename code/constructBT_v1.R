@@ -256,46 +256,40 @@ print.btRand <- function(obj, printAllNodes=T, checkSymmInBlk=F, ...){
     print(tbl,...)
 }
 
-# function to generate a rialization of random treatment allocation sequence
-generateAllocSeq <- function(allocRule,m=NULL){
-    w <- attr(allocRule,'w')
-    if (is.null(m)) m <- length(allocRule)
-    K <- dim(allocRule[[1]]$randProb)[1]
-    trtSeq <-numeric(m)
-    curNodeInd <- 1
-    for (ii in 1:m){
-        i <- (ii-1)%%sum(w)+1
-        trtSeq[ii] <- findInterval(  runif(1), c(0,cumsum(allocRule[[i]]$randProb[,curNodeInd])) )
- #      curNodeInd <- allocRule[[i]]$mapToNextGenerNode[ (curNodeInd-1)*K + trtSeq[i] ] bug fixed Mar 19 2013
-		curNodeInd <- allocRule[[i]]$mapToNextGenerNode[ (curNodeInd-1)*K + trtSeq[ii] ]
-    }
-    return(trtSeq)
+# function to generate a realization of random treatment allocation sequence
+generateAllocSeq <- function(
+   allocRule,                   # BTR object 
+   m = length(allocRule) - 1    # length of sequence
+)
+{
+   w <- attr(allocRule, 'w')
+   K <- dim(allocRule[[1]]$randProb)[1]
+   trtSeq <- numeric(m)
+   curNodeInd <- 1
+   for (ii in 1:m) {
+      i <- (ii - 1) %% sum(w) + 1
+      trtSeq[ii] <- findInterval(runif(1), c(0, cumsum(allocRule[[i]]$randProb[, curNodeInd])))
+      curNodeInd <- allocRule[[i]]$mapToNextGenerNode[(curNodeInd - 1) * K + trtSeq[ii]]
+   }
+   return(trtSeq)
 }
+
 
  # Example 
 if(0){
- set.seed(777)
- allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' ) 
- numSchedules <- 10000
- schedules <- array(0,c(numSchedules,length(allocRule)))
- for (j in 1:dim(schedules)[1])
-    schedules[j,] <- generateAllocSeq(allocRule) 
-
- # to report number of unique schedules and number of occurances
- summary(as.data.frame(apply(schedules[,],1,function(x)paste(x,collapse=''))),maxsum=20) 
- ( marginalProb <- apply(schedules,2,table)/numSchedules )
-}
-
- # Example 
-if(0){
- set.seed(777)
- allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' ) 
- numSchedules <- 10000
- schedules <- array(0,c(numSchedules,length(allocRule)))
- for (j in 1:dim(schedules)[1])
-    schedules[j,] <- generateAllocSeq(allocRule) 
-
- # to report number of unique schedules and number of occurances
- summary(as.data.frame(apply(schedules[,],1,function(x)paste(x,collapse=''))),maxsum=20) 
- ( marginalProb <- apply(schedules,2,table)/numSchedules )
+   set.seed(777)
+   #allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' )
+   allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minED')  
+   numSchedules <- 10000
+   schedules <- array(0,c(numSchedules,length(allocRule)-1))
+   for (j in 1:dim(schedules)[1])
+      schedules[j,] <- generateAllocSeq(allocRule,length(allocRule)-1) 
+   
+   # look at prelances of rand sequenses
+   apply(schedules[,],1,function(x)paste(x,collapse='')) |> 
+      table() |>
+      sort(decreasing = TRUE) |> data.frame()
+   
+   # check that ARP holds
+   apply(schedules,2,table)/numSchedules 
 }

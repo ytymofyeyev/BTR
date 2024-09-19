@@ -44,7 +44,6 @@ getBTgeometry <- function(w,numExtraLayers=1){
 }
 
 
-
 constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secondaryProperty="none"){
    if (! all(is.numeric(w)) && all(round(w, 0) == w)){
        stop("Randomization weights must an integer vector")
@@ -285,7 +284,8 @@ print.btRand <- function(obj, printAllNodes=T, checkSymmInBlk=F, ...){
 # function to generate a rialization of random treatment allocation sequence
 generateAllocSeq <- function(allocRule,m=NULL){
     w <- attr(allocRule,'w')
-    if (is.null(m)) m <- length(allocRule)
+    if (is.null(m)) 
+      m <- length(allocRule)-1
     K <- dim(allocRule[[1]]$randProb)[1]
     trtSeq <-numeric(m)
     curNodeInd <- 1
@@ -302,15 +302,20 @@ generateAllocSeq <- function(allocRule,m=NULL){
  # Example 
 if(0){
  set.seed(777)
- allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' ) 
+ #allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' )
+ allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minED')  
  numSchedules <- 10000
- schedules <- array(0,c(numSchedules,length(allocRule)))
+ schedules <- array(0,c(numSchedules,length(allocRule)-1))
  for (j in 1:dim(schedules)[1])
-    schedules[j,] <- generateAllocSeq(allocRule) 
+    schedules[j,] <- generateAllocSeq(allocRule,length(allocRule)-1) 
 
- # to report number of unique schedules and number of occurances
- summary(as.data.frame(apply(schedules[,],1,function(x)paste(x,collapse=''))),maxsum=20) 
- ( marginalProb <- apply(schedules,2,table)/numSchedules )
+ # look at prelances of rand sequenses
+ apply(schedules[,],1,function(x)paste(x,collapse='')) |> 
+   table() |>
+   sort(decreasing = TRUE) |> data.frame()
+ 
+ # check that ARP holds
+ apply(schedules,2,table)/numSchedules 
 }
 
  
