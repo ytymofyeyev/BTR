@@ -33,6 +33,9 @@ plotAlloc <- function(s, jigleSd=0.05,col=1){
 require(scatterplot3d)
 btObj <- constructBT(c(14,21,25),optimType="minNA",secondaryProperty="symmetry" )
 
+btObj <- constructBT(c(2,2,3),optimType="minNA",secondaryProperty="symmetry" )
+btObj <- constructBT(c(2,2,3),optimType="minED",secondaryProperty="symmetry" )
+
 
 nGen<-11
 w <- attr(btObj,"w")

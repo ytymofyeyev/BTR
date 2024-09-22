@@ -20,43 +20,18 @@ getBTgeometry <- function(w){
    list(gen=sort(gen),bt=BTnodes[,order(gen)])
 }
 
-constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secondaryProperty="none"){
-   if (! all(is.numeric(w)) && all(round(w, 0) == w)){
-       stop("Randomization weights must an integer vector")
-   }
-   if (is.null(m)) {m<-sum(w)+1}
-   if (!is.element(optimType, c("minED", "minFarthest", "minNA"))) {
-       stop("Character specification of optimization type may only be minED, minminFarthest or minNA")
-   }
-   if (!is.element(secondaryProperty, c("symmetry", "poolToOneHalf", "none"))) {
-       stop("Character specification for additional properties of randomization probabilaties type may only be symmetry, poolToOneHalf or none")
-   }
-   if (!is.element(distType, c("Euclidean", "norm1"))) {
-       stop("Character specification of optimization type may only be Euclidean or norm1 ")
-   }
-   distance <- switch (distType, 
-       Euclidean = function(x,r){
-          proj <- crossprod(x,r)/crossprod(r) * r
-          D <- sqrt(crossprod(x - proj))
-       },  
-       norm1 = function(x,r){
-          perfPoint <- r*sum(x)/sum(r) 
-          D <- sum(abs(x - perfPoint))
-       }  
-   )
-   tg <- getBTgeometry(w)
- 
-   getNextGeneration <-function(curGener, nodeMat, nodePr, w, nodeNumInPaths){
+getNextGeneration <-function(tg, curGener, nodeMat, nodePr, w, nodeNumInPaths,
+                             optimType, distance, secondaryProperty){
    # w - randomization ratio
    # curGener -(subject) for nextGenerNodeMat and nextGenerNodePr are going to be computed
    # for the next stage (subject)
    # each column of nodeMat represent a node defined by number of subject at 
    # each treatment arm ( j-th row corresponds to the j-th treantment arm)                             
    
-                                # compute possible nodeMat for next stage
+   # compute possible nodeMat for next stage
    # for each column of the nodeMat generatate K new nodes (b/c the next subject 
    # is assigned to one of the K possible treatments
- 
+   
    K <-length(w)       # number of treatment
    numNodes <- dim(nodeMat)[2]  # number of nodes at the current stage
    # matrix of all possible nodes for the next generation with the same structure as nodeMat 
@@ -68,7 +43,6 @@ constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secon
       apply(tg$bt[,tg$gen == (curGener%%sum(w))+1,drop=F]+w*(curGener%/%sum(w)),2,function(x)paste(x,collapse='.'))
    ))
    
-   #############################################################################################
    # compute transition probabilities to the candidate nodes at the next stage
    # by setting system of linear equations A * (trans.prob) = b
    
@@ -94,72 +68,72 @@ constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secon
    
    # use linear programming to solve under-defined system  
    nv <- dim(A)[2] 
-  
+   
    distToRay <- sapply(as.data.frame(candidateNodeMat), distance, r = w)
    distToRay[notFeasibleNode]<- -1
    farthestToRay <- distToRay==max(distToRay)
- 
+   
    if (secondaryProperty=='symmetry'){
-       Apd <- cbind( rep(1,nv-1), -diag(nv-1))
-       if (nv>2)
-       for(u in 2:(nv-1)){
-          Apd <- rbind(Apd, cbind(  matrix(0,ncol=u-1,nrow=nv-u),rep(1,nv-u),-diag(nv-u))  )
-       }
-       nvApd <- nv*(nv-1)/2
-       A.abs.1 <- cbind(   Apd, -diag(nvApd) )
-       A.abs.2 <- cbind(  -Apd, -diag(nvApd) ) 
-       b.abs.1 <-  rep(0,nvApd)
-       b.abs.2 <-  rep(0,nvApd)
-       A.sec <- rbind(A.abs.1, A.abs.2)
-       b.sec <- c(b.abs.1, b.abs.2)
-       dir.sec <- rep("<=", 2*nvApd) 
-       numAuxVar <- nvApd
+      Apd <- cbind( rep(1,nv-1), -diag(nv-1))
+      if (nv>2)
+         for(u in 2:(nv-1)){
+            Apd <- rbind(Apd, cbind(  matrix(0,ncol=u-1,nrow=nv-u),rep(1,nv-u),-diag(nv-u))  )
+         }
+      nvApd <- nv*(nv-1)/2
+      A.abs.1 <- cbind(   Apd, -diag(nvApd) )
+      A.abs.2 <- cbind(  -Apd, -diag(nvApd) ) 
+      b.abs.1 <-  rep(0,nvApd)
+      b.abs.2 <-  rep(0,nvApd)
+      A.sec <- rbind(A.abs.1, A.abs.2)
+      b.sec <- c(b.abs.1, b.abs.2)
+      dir.sec <- rep("<=", 2*nvApd) 
+      numAuxVar <- nvApd
    } else if (secondaryProperty=='poolToOneHalf') {
-       A.abs.1 <- cbind(  diag(nv), -diag(nv) )
-       A.abs.2 <- cbind( -diag(nv), -diag(nv) ) 
-       b.abs.1 <- rep( 0.5, length.out=nv)
-       b.abs.2 <- rep(-0.5, length.out=nv)
-       A.sec <- rbind(A.abs.1, A.abs.2)
-       b.sec <- c(b.abs.1, b.abs.2)
-       dir.sec <- rep("<=", 2*nv) 
-       numAuxVar <- nv
+      A.abs.1 <- cbind(  diag(nv), -diag(nv) )
+      A.abs.2 <- cbind( -diag(nv), -diag(nv) ) 
+      b.abs.1 <- rep( 0.5, length.out=nv)
+      b.abs.2 <- rep(-0.5, length.out=nv)
+      A.sec <- rbind(A.abs.1, A.abs.2)
+      b.sec <- c(b.abs.1, b.abs.2)
+      dir.sec <- rep("<=", 2*nv) 
+      numAuxVar <- nv
    } else {
-       A.sec <- NULL
-       b.sec <- NULL
-       dir.sec <- NULL 
-       numAuxVar <- 0
+      A.sec <- NULL
+      b.sec <- NULL
+      dir.sec <- NULL 
+      numAuxVar <- 0
    }
    # define constraint matrix for linear optimization program
    A.lp <- rbind(
-       cbind(A, matrix(0,nrow=dim(A)[1],ncol=numAuxVar)),  # tunel constraints, probabilities sums to 1 and uncondinional prob. requirements
-       cbind(diag(nv), matrix(0,nrow=nv,ncol=numAuxVar)),  # to restrict probab. be less then 1 
-       A.sec                                               # to incorporate secondary properties, e.g. symmetry
+      cbind(A, matrix(0,nrow=dim(A)[1],ncol=numAuxVar)),  # tunel constraints, probabilities sums to 1 and uncondinional prob. requirements
+      cbind(diag(nv), matrix(0,nrow=nv,ncol=numAuxVar)),  # to restrict probab. be less then 1 
+      A.sec                                               # to incorporate secondary properties, e.g. symmetry
    ) 
    # corresponding right hand side of A.lp
    rhs.lp <- c( b,
-      rep(1,nv),
-      b.sec
+                rep(1,nv),
+                b.sec
    )
    # corresponding directions
    dir.lp <- c( rep("==",length(b)),  
-      rep("<=",nv),         
-      dir.sec       
+                rep("<=",nv),         
+                dir.sec       
    )
    # define objective for lp  
    objective<-switch(optimType,
-       minED = c( 10000*rep(nodePr,each=K)*distToRay, rep(1,numAuxVar )),
-       minFarthest = c( 10000*rep(nodePr,each=K) * farthestToRay, rep(1,numAuxVar )),
-       minNA = c( rep(0,nv), rep(1,numAuxVar ))
+                     minED = c( 10000*rep(nodePr,each=K)*distToRay, rep(1,numAuxVar )),
+                     minFarthest = c( 10000*rep(nodePr,each=K) * farthestToRay, rep(1,numAuxVar )),
+                     minNA = c( rep(0,nv), rep(1,numAuxVar ))
    )
    lpRes <- Rglpk_solve_LP( obj=objective, mat=A.lp, dir=dir.lp, rhs=rhs.lp,
-       types = NULL, max = FALSE, bounds = NULL, verbose = FALSE) 
+                            types = NULL, max = FALSE, bounds = NULL, verbose = FALSE) 
    if ( lpRes$status == 0){
-       trProb <- lpRes$solution[1:nv]
+      trProb <- lpRes$solution[1:nv]
    } else {
-       stop(paste("Solution was not found by linear programming solver. \n",
-           "Attepted to solve problem for", nv, "transition probabilities, plus", numAuxVar,"auxlilary variables."))
+      stop(paste("Solution was not found by linear programming solver. \n",
+                 "Attepted to solve problem for", nv, "transition probabilities, plus", numAuxVar,"auxlilary variables."))
    }
-
+   
    # compute probability of getting to a particular node at next stage (subject)
    # and number of different paths that lead to the node at next stage
    aux.nextGenerNodePr <- rep(nodePr,each=K)*c(trProb)
@@ -168,41 +142,69 @@ constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secon
    nextGenerNodePr <- numeric(dim(nextGenerNodeMat)[2])
    nextGenerNodeNumInPaths <- numeric(dim(nextGenerNodeMat)[2]) # count number of paths that lead to node
    for (j in 1:dim(nextGenerNodeMat)[2]){
-       un.j <- apply(candidateNodeMat,2,function(x,st){
-           all(x == st)
-       }, st = nextGenerNodeMat[,j])  # get indexes that map to the same actual node
-       nextGenerNodePr[j] <- sum(aux.nextGenerNodePr[un.j])
-       nextGenerNodeNumInPaths[j] <- sum( aux.nextGenerNodeNumInPaths[un.j] )
+      un.j <- apply(candidateNodeMat,2,function(x,st){
+         all(x == st)
+      }, st = nextGenerNodeMat[,j])  # get indexes that map to the same actual node
+      nextGenerNodePr[j] <- sum(aux.nextGenerNodePr[un.j])
+      nextGenerNodeNumInPaths[j] <- sum( aux.nextGenerNodeNumInPaths[un.j] )
    }
    nextGenerNodeMat <- matrix(nextGenerNodeMat[ ,nextGenerNodePr > 0.00001],nrow=K)
    nextGenerNodePr <- nextGenerNodePr[nextGenerNodePr > 0.00001]
    nextGenerNodeNumInPaths <- nextGenerNodeNumInPaths[nextGenerNodeNumInPaths>0]
    return(list(curGener=curGener, nodeMat=nodeMat, 
-      nodePr=nodePr, nodeNumInPaths = nodeNumInPaths,
-      curNodeRandProb= round(matrix(trProb,nrow=K),6),
-      nextGenerNodeMat=nextGenerNodeMat, nextGenerNodePr=nextGenerNodePr, 
-      nextGenerNodeNumInPaths = nextGenerNodeNumInPaths,
-#     nextGener_ED=  sum( nextGenerNodePr *sapply(as.data.frame(nodeMat),distance,r=w)),
-      nextGenerCandidateNodeMat =  candidateNodeMat,
-#      nextGenerCandidateNode_distToRay = distToRay,
-      # add to information about mapping of candidate nodes to actual nodes for next generation  
-      # to speed up actual allocation generation
-      mapToNextGenerNode = match( 
-         apply(t(candidateNodeMat),1,function(y)paste(y,collapse='')),
-         apply(t(nextGenerNodeMat),1,function(y)paste(y,collapse=''))
-      )
+               nodePr=nodePr, nodeNumInPaths = nodeNumInPaths,
+               curNodeRandProb= round(matrix(trProb,nrow=K),6),
+               nextGenerNodeMat=nextGenerNodeMat, nextGenerNodePr=nextGenerNodePr, 
+               nextGenerNodeNumInPaths = nextGenerNodeNumInPaths,
+               #     nextGener_ED=  sum( nextGenerNodePr *sapply(as.data.frame(nodeMat),distance,r=w)),
+               nextGenerCandidateNodeMat =  candidateNodeMat,
+               #      nextGenerCandidateNode_distToRay = distToRay,
+               # add to information about mapping of candidate nodes to actual nodes for next generation  
+               # to speed up actual allocation generation
+               mapToNextGenerNode = match( 
+                  apply(t(candidateNodeMat),1,function(y)paste(y,collapse='')),
+                  apply(t(nextGenerNodeMat),1,function(y)paste(y,collapse=''))
+               )
    ))
-   } # getNextGeneration
+} # getNextGeneration
 
+constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secondaryProperty="none"){
+   if (! all(is.numeric(w)) && all(round(w, 0) == w)){
+       stop("Randomization weights must an integer vector")
+   }
+   if (is.null(m)) {m<-sum(w)+1}
+   if (!is.element(optimType, c("minED", "minFarthest", "minNA"))) {
+       stop("Character specification of optimization type may only be minED, minminFarthest or minNA")
+   }
+   if (!is.element(secondaryProperty, c("symmetry", "poolToOneHalf", "none"))) {
+       stop("Character specification for additional properties of randomization probabilaties type may only be symmetry, poolToOneHalf or none")
+   }
+   if (!is.element(distType, c("Euclidean", "norm1"))) {
+       stop("Character specification of optimization type may only be Euclidean or norm1 ")
+   }
+   distance <- switch (distType, 
+       Euclidean = function(x,r){
+          proj <- c(crossprod(x,r)/crossprod(r)) * r
+          D <- sqrt(crossprod(x - proj))
+       },  
+       norm1 = function(x,r){
+          perfPoint <- r*sum(x)/sum(r) 
+          D <- sum(abs(x - perfPoint))
+       }  
+   )
+   tg <- getBTgeometry(w)
    # build tunnel 
    tunnel <- list(   # null (initial) gener
      list( generation=0, nodeMat=matrix(rep(0,length(w)),nrow=length(w)),nodePr = 1,nodeNumInPaths=1)
    )
    for( i in 1:m){
-     temp <- getNextGeneration(curGener=i-1, tunnel[[i]]$nodeMat, tunnel[[i]]$nodePr, w, tunnel[[i]]$nodeNumInPaths )
+     temp <- getNextGeneration(tg=tg, curGener=i-1, tunnel[[i]]$nodeMat, 
+                               tunnel[[i]]$nodePr, w, tunnel[[i]]$nodeNumInPaths, 
+                               optimType = optimType, distance = distance, 
+                               secondaryProperty = secondaryProperty )
      tunnel[[i]]$randProb <- temp$curNodeRandProb
      tunnel[[i]]$nextGenerNodeMat <- temp$nextGenerNodeMat     
-	 tunnel[[i]]$nextGenerCandidateNodeMat <- temp$nextGenerCandidateNodeMat  # todo     
+	  tunnel[[i]]$nextGenerCandidateNodeMat <- temp$nextGenerCandidateNodeMat  # todo     
      tunnel[[i]]$mapToNextGenerNode <- temp$mapToNextGenerNode   # used for generation of alloc schedule instanses             
      tunnel[[i+1]] <- list(generation=i, nodeMat=temp$nextGenerNodeMat, 
         nodePr = temp$nextGenerNodePr, nodeNumInPaths=temp$nextGenerNodeNumInPaths)
@@ -214,7 +216,6 @@ constructBT <-function(w, m=NULL, optimType="minED", distType="Euclidean", secon
    return(tunnel)
 }
 
-##########################################################################################################
 # print btRand object as table 
 print.btRand <- function(obj, printAllNodes=T, checkSymmInBlk=F, ...){
     w <- attr(obj,'w')
@@ -275,21 +276,72 @@ generateAllocSeq <- function(
 }
 
 
- # Example 
-if(0){
-   set.seed(777)
-   #allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' )
-   allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minED')  
-   numSchedules <- 10000
-   schedules <- array(0,c(numSchedules,length(allocRule)-1))
+
+set.seed(777)
+w_list <- list(
+   `2:3`         = c(2, 3),
+   `2:2:3`       = c(2, 2, 3),
+   `14:21:25`    = c(14, 21, 25),
+   `1:1:1:2:4`   = c(1, 1, 1, 2, 4),
+   `2:3:3:4:4:4` = c(2, 3, 3, 4, 4, 4)
+   )
+   
+test_1 <-function(
+   w,                      # target allocation
+   optimType = 'minED',    # optimization rule 
+   num_schedules = 10000,  # number of replications
+   seq_len = sum(w)        # number of assignments within each sequence
+)
+{   
+   # generate allocation rule 
+   allocRule <- constructBT(w =w, optimType = optimType )  
+   # generate sequences
+   schedules <- array(0,c(num_schedules,seq_len ))
    for (j in 1:dim(schedules)[1])
-      schedules[j,] <- generateAllocSeq(allocRule,length(allocRule)-1) 
-   
-   # look at prelances of rand sequenses
-   apply(schedules[,],1,function(x)paste(x,collapse='')) |> 
-      table() |>
-      sort(decreasing = TRUE) |> data.frame()
-   
+      schedules[j,] <- generateAllocSeq(allocRule,seq_len) 
+
+   # look check that all sequences are permutations of w (assuming sequence length is sum(w)) 
+   block_check_pass<- apply(schedules[,], 1, 
+      function(x) sort(table(x),TRUE) == sort(w,TRUE)) |> all()
+
    # check that ARP holds
-   apply(schedules,2,table)/numSchedules 
+   x <- t( apply(schedules,2,function(x) table(factor(x,levels=1:length(w))),
+            simplify = TRUE)/num_schedules)
+   dimnames(x) <- list(position = 1:seq_len, p = round(w/sum(w),3))
+   return( 
+      list(
+         block_check_pass = block_check_pass, 
+         APR_check = x
+      )
+   )
 }
+
+# Example 
+if(0){
+require(tidyverse)
+   
+# res <- tibble(
+#     w = w_list[1:2],
+#    optimType = 'minED',    # optimization rule 
+# ) |> dplyr::mutate(
+#    seq_len = purrr::map_dbl( w,\(w) {sum(w)-1})
+# ) |> mutate(
+#    ans = purrr::map(.x = w ,
+#                     .f = \(a) test_1(w = a), .progress = TRUE)
+# )
+
+# w_list |> lapply(test_1)
+
+test_1( w=c(1,1,1,1,2,3,3,5))
+   
+}
+
+
+
+
+# look at prevalence 
+#apply(schedules[,],1,function(x)paste(x,collapse='')) |> 
+#   table() |>
+#   sort(decreasing = TRUE) |> data.frame()
+
+
