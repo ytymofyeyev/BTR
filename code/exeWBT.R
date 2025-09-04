@@ -1,6 +1,8 @@
-require(Rglpk)
-setwd( "/home/yt/Projects/BTR")
-source("./code/constructBT_v1.R")
+library(Rglpk)
+library(here)
+
+# Use here() to get project root directory for relative paths
+source(here("code", "constructBT_v1.R"))
 
 ##############################################################
 numSchedules <- 5
@@ -112,7 +114,7 @@ for (j in 1:dim(S)[1]) S[j,] <- generateAllocSeq(allocRule,sLen)
 # generate WBT and save results
 S.wbt <- t(apply( S,1,applySwitches,sr=switchRule,delta=delta))
 
-write.table( S.wbt,file=file.path(simResDir,sprintf("%s_job_%d.out",ver,job.id)),
+write.table( S.wbt,file=here(simResDir,sprintf("%s_job_%d.out",ver,job.id)),
 	row.names=FALSE,col.names=FALSE, eol="\r\n")
 if (job.id==1) 
-	save(C1,C2,b,delta,sLen,ver,simResDir,file = file.path(simResDir,sprintf("%s_param.Rdata",ver)))
+	save(C1,C2,b,delta,sLen,ver,simResDir,file = here(simResDir,sprintf("%s_param.Rdata",ver)))

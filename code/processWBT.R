@@ -1,18 +1,18 @@
 require(Rglpk)
-setwd("C:/Projects/BTR")
-source("constructBT_v1.R")
-source("plotBT_work.R")
+library(here)
+source(here("code", "constructBT_v1.R"))
+source(here("code", "plotBT_work.R"))
 
-C1<-2
-C2<-3
+C1 <- 2
+C2 <- 3
 b <- 4.5
 seqLenthCap <- 15
-bBT <- (C2-1)/C1+1
+bBT <- (C2-1)/C1 + 1
 # number of layers is L (WBT might also include L+1 layer)
-L <- floor(b-bBT)
+L <- floor(b - bBT)
 m <- 1:seqLenthCap
-Ytop_m <- ceiling(m*C2/C1) 
-Ybot_m <- floor( (m-1)*C2/C1)
+Ytop_m <- ceiling(m * C2 / C1) 
+Ybot_m <- floor((m-1) * C2 / C1)
 pos <- layer <- bound <- numeric(0)
 for( j in 0:L){
 	switchPosTop <- m+Ytop_m + j 
@@ -55,8 +55,8 @@ applySwitches <- function(sch, sr, delta=0.5){
 	switchDelta[pickElementFromBadPair] <- delta*ifelse(delta>=0.5,1,2)
 	sr$swOn <- runif(len) < switchDelta
 	for (l in 1:max(sr$layer)){
-		layerSR <- subset(sr, layer==l)
-		for (i in 1:length(layerSR$pos) ){
+		layerSR <- subset(sr, sr$layer==l)
+		for (i in seq_along(layerSR$pos)){
 			toSwitch <- c( layerSR$pos[i], layerSR$pos[i]+1 ) 
 			if( layerSR$swOn[i]){
 				sch[toSwitch] <- sch[rev(toSwitch)]
@@ -70,7 +70,7 @@ applySwitches <- function(sch, sr, delta=0.5){
 allocRule <- constructBT(c(C1,C2), m=seqLenthCap)
 numSchedules <- 10000
 sch <- array(0,c(numSchedules,length(allocRule)))
-for (j in 1:dim(sch)[1])
+for (j in seq_len(dim(sch)[1]))
 	sch[j,] <- generateAllocSeq(allocRule) 
 
 plotBT.2D(allocRule)
@@ -114,7 +114,7 @@ if(0){
 uInd <- which(!duplicated(subset(dat0,select=c("layer","pos"))))
 switch <- merge(
 		dat0[ uInd, c("layer","pos","badPair")],
-		dat0[ setdiff(1:dim(dat0)[1] ,uInd),c("layer","pos","badPair")], by=c("layer","pos"),all=T,
+		dat0[ setdiff(seq_len(dim(dat0)[1]) ,uInd),c("layer","pos","badPair")], by=c("layer","pos"),all=T,
 		suffix=c("",".2rec")
 )
 # over-write "badPair" indicator if same 'pos' appeared twice
@@ -136,7 +136,7 @@ if(0){
  allocRule <- constructBT(w=c(4,2,1,1,1),optimType='minNA' ) 
  numSchedules <- 10000
  schedules <- array(0,c(numSchedules,length(allocRule)))
- for (j in 1:dim(schedules)[1])
+ for (j in seq_len(dim(schedules)[1]))
     schedules[j,] <- generateAllocSeq(allocRule) 
 
  # to report number of unique schedules and number of occurances
